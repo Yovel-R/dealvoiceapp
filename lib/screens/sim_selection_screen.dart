@@ -22,7 +22,19 @@ class _SimSelectionScreenState extends State<SimSelectionScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchSimData();
+    _checkSetupAndFetch();
+  }
+
+  Future<void> _checkSetupAndFetch() async {
+    final prefs = await SharedPreferences.getInstance();
+    final code = prefs.getString('companyCode') ?? '';
+    if (code.isEmpty) {
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/company-code');
+      }
+      return;
+    }
+    await _fetchSimData();
   }
 
   Future<void> _fetchSimData() async {
@@ -126,10 +138,13 @@ class _SimSelectionScreenState extends State<SimSelectionScreen> {
       await prefs.setBool('isLoggedIn', true);
       await prefs.setString('employeeName', employee['name'] ?? '');
       await prefs.setString('mobileNumber', rawNumber);
-      await prefs.setString('employeeId', employee['_id'] ?? '');
+      // Save employee code if it exists
+      final existingCode = employee['employeeCode'] ?? '';
+      if (existingCode.isNotEmpty) {
+        await prefs.setString('employeeCode', existingCode);
+      }
 
       // If the employee has no code yet, show the optional prompt
-      final existingCode = employee['employeeCode'] ?? '';
       if (existingCode.isEmpty && mounted) {
         await _showEmployeeCodeDialog(employee['_id'] ?? '');
       }
@@ -155,31 +170,25 @@ class _SimSelectionScreenState extends State<SimSelectionScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text(
-            'Set Employee Code',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
+        builder: (ctx, setDialogState) => PremiumDialog(
+          icon: Icons.badge_outlined,
+          iconColor: Colors.indigo,
+          title: 'Employee Code',
+          subtitle: 'Your manager may assign you a code. Enter it below, or skip for now.',
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Your manager may assign you an employee code. Enter it below, or tap Skip to do it later from your profile.',
-                style: TextStyle(fontSize: 13, color: Colors.black54),
-              ),
-              const SizedBox(height: 16),
               TextField(
                 controller: codeController,
                 textCapitalization: TextCapitalization.characters,
+                style: const TextStyle(fontSize: 14, fontFamily: 'Inter'),
                 decoration: InputDecoration(
-                  labelText: 'Employee Code (optional)',
+                  labelText: 'Company Code',
                   hintText: 'e.g. EMP-001',
-                  prefixIcon: const Icon(Icons.badge_outlined),
+                  prefixIcon: const Icon(Icons.pin_outlined, size: 20),
                   errorText: errorText.isNotEmpty ? errorText : null,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                  contentPadding: const EdgeInsets.all(16),
                 ),
               ),
             ],
@@ -187,17 +196,17 @@ class _SimSelectionScreenState extends State<SimSelectionScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Skip', style: TextStyle(color: Colors.grey)),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              child: Text('Skip for now', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold, fontFamily: 'Inter')),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
               onPressed: () async {
                 final code = codeController.text.trim();
                 if (code.isEmpty) {
-                  setDialogState(() => errorText = 'Please enter a code or tap Skip.');
+                  setDialogState(() => errorText = 'Enter code or tap Skip.');
                   return;
                 }
                 final res = await ApiService.updateEmployeeCode(
@@ -205,12 +214,21 @@ class _SimSelectionScreenState extends State<SimSelectionScreen> {
                   employeeCode: code,
                 );
                 if (res['success'] == true) {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setString('employeeCode', code);
                   if (ctx.mounted) Navigator.pop(ctx);
                 } else {
-                  setDialogState(() => errorText = res['message'] ?? 'Failed to save code.');
+                  setDialogState(() => errorText = res['message'] ?? 'Failed to save.');
                 }
               },
-              child: const Text('Save', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              child: const Text('Save Code', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Inter')),
             ),
           ],
         ),
@@ -227,33 +245,27 @@ class _SimSelectionScreenState extends State<SimSelectionScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(
-            hasDetected ? 'Confirm Mobile Number' : 'Enter Mobile Number',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
+        builder: (ctx, setDialogState) => PremiumDialog(
+          icon: hasDetected ? Icons.verified_user_rounded : Icons.phone_android_rounded,
+          iconColor: Colors.indigo,
+          title: hasDetected ? 'Verify Number' : 'Enter Number',
+          subtitle: hasDetected
+              ? 'SIM ${slotIndex + 1} ($carrier) number detected. Please confirm.'
+              : 'Could not detect number for SIM ${slotIndex + 1}. Please enter manually.',
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                hasDetected
-                    ? 'We detected the number below for SIM ${slotIndex + 1} ($carrier). Please verify or correct it before continuing.'
-                    : 'We could not detect the mobile number for SIM ${slotIndex + 1} ($carrier). Please enter your number below.',
-                style: const TextStyle(fontSize: 13, color: Colors.black54),
-              ),
-              const SizedBox(height: 16),
               TextField(
                 controller: numberController,
                 keyboardType: TextInputType.phone,
+                style: const TextStyle(fontSize: 14, fontFamily: 'Inter'),
                 decoration: InputDecoration(
                   labelText: 'Mobile Number',
                   hintText: 'e.g. 9876543210',
-                  prefixIcon: const Icon(Icons.phone),
+                  prefixIcon: const Icon(Icons.phone, size: 20),
                   errorText: errorText.isNotEmpty ? errorText : null,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                  contentPadding: const EdgeInsets.all(16),
                 ),
               ),
             ],
@@ -261,22 +273,29 @@ class _SimSelectionScreenState extends State<SimSelectionScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              child: Text('Cancel', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold, fontFamily: 'Inter')),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
               onPressed: () {
                 final num = numberController.text.trim();
                 if (num.isEmpty || num.length < 8) {
-                  setDialogState(() => errorText = 'Please enter a valid number.');
+                  setDialogState(() => errorText = 'Enter a valid number.');
                   return;
                 }
                 Navigator.pop(ctx, num);
               },
-              child: const Text('Continue', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              child: const Text('Continue', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Inter')),
             ),
           ],
         ),

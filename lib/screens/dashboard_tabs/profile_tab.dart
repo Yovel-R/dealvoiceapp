@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../utils/ui_utils.dart';
 
 class ProfileTab extends StatefulWidget {
@@ -12,6 +13,7 @@ class ProfileTab extends StatefulWidget {
 
 class _ProfileTabState extends State<ProfileTab> {
   String _employeeName = '';
+  String _appVersion = '1.0.0';
   // Removed redundant header fields
 
   final TextEditingController _templateCtrl = TextEditingController();
@@ -24,9 +26,11 @@ class _ProfileTabState extends State<ProfileTab> {
 
   Future<void> _loadProfile() async {
     final prefs = await SharedPreferences.getInstance();
+    final packageInfo = await PackageInfo.fromPlatform();
     setState(() {
       _employeeName = prefs.getString('employeeName') ?? 'Employee';
       _templateCtrl.text = prefs.getString('whatsappTemplate') ?? 'Hi {name}!';
+      _appVersion = '${packageInfo.version} (${packageInfo.buildNumber})';
     });
   }
 
@@ -44,20 +48,26 @@ class _ProfileTabState extends State<ProfileTab> {
   void _showPrivacyPolicy() {
     UIUtils.showSmoothDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Privacy Policy'),
-        content: const SingleChildScrollView(
-          child: Text(
-            'Your privacy policy goes here.\n\n'
-            'DealVoice respects your privacy and ensures that '
-            'your call logs are securely synced to your organization\'s '
-            'dashboard.',
-          ),
+      builder: (context) => PremiumDialog(
+        icon: Icons.privacy_tip_rounded,
+        title: 'Privacy Policy',
+        subtitle: 'Last updated: March 2024',
+        content: const Text(
+          'DealVoice respects your privacy and ensures that your call logs are securely synced to your organization\'s dashboard. We do not share your personal data with third parties.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 14, color: Color(0xFF4B5563), height: 1.5, fontFamily: 'Inter'),
         ),
         actions: [
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF3D7DFE),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              elevation: 0,
+            ),
+            child: const Text('Understand', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Inter')),
           ),
         ],
       ),
@@ -67,18 +77,30 @@ class _ProfileTabState extends State<ProfileTab> {
   Future<void> _logout() async {
     final confirm = await UIUtils.showSmoothDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Log Out'),
-        content: const Text('Are you sure you want to log out of DealVoice?'),
+      builder: (context) => PremiumDialog(
+        icon: Icons.logout_rounded,
+        title: 'Log Out',
+        subtitle: 'Are you sure you want to log out of DealVoice? All local data will be cleared.',
+        isDestructive: true,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            child: Text('Cancel', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold, fontFamily: 'Inter')),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Log Out'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              elevation: 0,
+            ),
+            child: const Text('Log Out', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Inter')),
           ),
         ],
       ),
@@ -98,151 +120,122 @@ class _ProfileTabState extends State<ProfileTab> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          return AlertDialog(
-            titlePadding: EdgeInsets.zero,
-            contentPadding: EdgeInsets.zero,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            content: Container(
-              width: MediaQuery.of(context).size.width * 0.9,
-              padding: const EdgeInsets.all(24),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+          return PremiumDialog(
+            icon: FontAwesomeIcons.whatsapp,
+            iconColor: const Color(0xFF25D366),
+            title: 'WhatsApp Format',
+            subtitle: 'Customize your auto-fill message. Use {name} for dynamic placeholders.',
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Quick-insert chip
+                GestureDetector(
+                  onTap: () {
+                    final pos = _templateCtrl.selection.baseOffset;
+                    final text = _templateCtrl.text;
+                    const insert = '{name}';
+                    final validPos = pos < 0 ? text.length : pos;
+                    final newText = text.substring(0, validPos) + insert + text.substring(validPos);
+                    _templateCtrl.value = TextEditingValue(
+                      text: newText,
+                      selection: TextSelection.collapsed(offset: validPos + insert.length),
+                    );
+                    setDialogState(() {});
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF25D366).withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF25D366).withOpacity(0.2)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF25D366).withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const FaIcon(FontAwesomeIcons.whatsapp, color: Color(0xFF25D366), size: 18),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Text(
-                            'WhatsApp Format',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1E2E)),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.close, size: 20, color: Colors.grey),
+                         Icon(Icons.add_circle_outline_rounded, color: Color(0xFF166534), size: 14),
+                         SizedBox(width: 6),
+                         Text(
+                          'Insert {name}',
+                          style: TextStyle(fontSize: 12, color: Color(0xFF166534), fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Use {name} and it will be replaced with the contact\'s name.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Quick-insert chip
-                    GestureDetector(
-                      onTap: () {
-                        final pos = _templateCtrl.selection.baseOffset;
-                        final text = _templateCtrl.text;
-                        final insert = '{name}';
-                        final validPos = pos < 0 ? text.length : pos;
-                        final newText = text.substring(0, validPos) + insert + text.substring(validPos);
-                        _templateCtrl.value = TextEditingValue(
-                          text: newText,
-                          selection: TextSelection.collapsed(offset: validPos + insert.length),
-                        );
-                        setDialogState(() {});
-                        setState(() {});
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF25D366).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xFF25D366).withOpacity(0.3)),
-                        ),
-                        child: const Text(
-                          '+ insert {name}',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF1A8A4A), fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Template text field
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                      ),
-                      child: TextField(
-                        controller: _templateCtrl,
-                        maxLines: 4,
-                        onChanged: (_) {
-                          setDialogState(() {});
-                          setState(() {});
-                        },
-                        decoration: const InputDecoration(
-                          hintText: 'e.g. Hi {name}, how are you?',
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.all(16),
-                        ),
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Live preview
-                    if (_templateCtrl.text.isNotEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFECFDF5),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFF86EFAC)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Preview:', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 4),
-                            Text(
-                              _templateCtrl.text.replaceAll('{name}', _employeeName.isNotEmpty ? _employeeName : 'John'),
-                              style: const TextStyle(fontSize: 13, color: Color(0xFF065F46), fontWeight: FontWeight.w500),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                    const SizedBox(height: 24),
-
-                    // Actions
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          await _saveTemplate();
-                          if (mounted) Navigator.pop(context);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF25D366),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          elevation: 0,
-                        ),
-                        child: const Text('Save Template', style: TextStyle(fontWeight: FontWeight.w600)),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+
+                const SizedBox(height: 16),
+
+                // Template text field
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9FAFB),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: TextField(
+                    controller: _templateCtrl,
+                    maxLines: 4,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: const InputDecoration(
+                      hintText: 'e.g. Hi {name}, looking forward to our call!',
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.all(16),
+                    ),
+                    style: const TextStyle(fontSize: 14, fontFamily: 'Inter'),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Live preview
+                if (_templateCtrl.text.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFF86EFAC).withOpacity(0.5)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('LIVE PREVIEW', style: TextStyle(fontSize: 9, color: Color(0xFF166534), fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+                        const SizedBox(height: 8),
+                        Text(
+                          _templateCtrl.text.replaceAll('{name}', _employeeName.isNotEmpty ? _employeeName : 'John'),
+                          style: const TextStyle(fontSize: 13, color: Color(0xFF065F46), fontWeight: FontWeight.w500, fontFamily: 'Inter'),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: Text('Cancel', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold, fontFamily: 'Inter')),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  await _saveTemplate();
+                  if (context.mounted) Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF3D7DFE),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
+                ),
+                child: const Text('Save Format', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Inter')),
+              ),
+            ],
           );
         },
       ),
@@ -251,38 +244,117 @@ class _ProfileTabState extends State<ProfileTab> {
 
   @override
   Widget build(BuildContext context) {
+    const primaryBlue = Color(0xFF3D7DFE);
     return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 30),
+          const SizedBox(height: 20),
 
-          // Menu Options
+          // --- ACCOUNT SECTION ---
+          _buildSectionHeader('Account Settings'),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20.0),
             child: Column(
               children: [
                 _buildMenuTile(
                   icon: FontAwesomeIcons.whatsapp,
-                  title: 'WhatsApp Message Format',
+                  title: 'WhatsApp Format',
                   iconColor: const Color(0xFF25D366),
+                  subtitle: 'Customize your auto-fill message',
                   onTap: _showWhatsAppTemplateDialog,
-                ),
-                _buildMenuTile(
-                  icon: Icons.privacy_tip_outlined,
-                  title: 'Privacy Policy',
-                  onTap: _showPrivacyPolicy,
-                ),
-                _buildMenuTile(
-                  icon: Icons.logout,
-                  title: 'Log Out',
-                  textColor: Colors.red,
-                  iconColor: Colors.red,
-                  onTap: _logout,
                 ),
               ],
             ),
           ),
+
+          const SizedBox(height: 16),
+
+          // --- SUPPORT SECTION ---
+          _buildSectionHeader('Support & Legal'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: Column(
+              children: [
+                _buildMenuTile(
+                  icon: Icons.privacy_tip_rounded,
+                  title: 'Privacy Policy',
+                  iconColor: primaryBlue,
+                  subtitle: 'How we handle your data',
+                  onTap: _showPrivacyPolicy,
+                ),
+                _buildMenuTile(
+                  icon: Icons.info_outline_rounded,
+                  title: 'About DealVoice',
+                  iconColor: Colors.amber.shade700,
+                  subtitle: 'Version $_appVersion',
+                  onTap: () {
+                    UIUtils.showPremiumSnackBar(context, 'DealVoice v$_appVersion - Premium');
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // --- LOGOUT SECTION ---
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: _buildMenuTile(
+              icon: Icons.logout_rounded,
+              title: 'Log Out',
+              textColor: Colors.red,
+              iconColor: Colors.red,
+              subtitle: 'Securely exit your account',
+              onTap: _logout,
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Version Info
+          Center(
+            child: Column(
+              children: [
+                Text(
+                  'DealVoice for Business',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.black.withOpacity(0.3),
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Inter',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 100), // Bottom nav padding
         ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E1E), // Premium black
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          title.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.5,
+            color: Colors.white,
+            fontFamily: 'Inter',
+          ),
+        ),
       ),
     );
   }
@@ -291,14 +363,16 @@ class _ProfileTabState extends State<ProfileTab> {
     required IconData icon,
     required String title,
     required VoidCallback onTap,
+    String? subtitle,
     Color textColor = const Color(0xFF1A1E2E),
-    Color iconColor = Colors.indigo,
+    Color iconColor = const Color(0xFF3D7DFE),
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE5E7EB).withOpacity(0.5)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -309,11 +383,12 @@ class _ProfileTabState extends State<ProfileTab> {
       ),
       child: ListTile(
         onTap: onTap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         leading: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: iconColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Icon(icon, color: iconColor, size: 22),
         ),
@@ -321,12 +396,24 @@ class _ProfileTabState extends State<ProfileTab> {
           title,
           style: TextStyle(
             color: textColor,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.bold,
             fontSize: 16,
+            fontFamily: 'Inter',
           ),
         ),
-        trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        subtitle: subtitle != null
+            ? Text(
+                subtitle,
+                style: TextStyle(
+                  color: Colors.grey.shade500,
+                  fontSize: 12,
+                  fontFamily: 'Inter',
+                  fontWeight: FontWeight.w500,
+                ),
+              )
+            : null,
+        trailing: Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400, size: 20),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       ),
     );
   }

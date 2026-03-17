@@ -19,7 +19,7 @@ class HomeTab extends StatefulWidget {
   State<HomeTab> createState() => _HomeTabState();
 }
 
-class _HomeTabState extends State<HomeTab> {
+class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   // Unused fields from header removed
   String _companyCode = '';
   String _mobileNumber = '';
@@ -34,6 +34,7 @@ class _HomeTabState extends State<HomeTab> {
 
   Timer? _syncTimer;
   final TextEditingController _searchController = TextEditingController();
+  late AnimationController _syncRotateController;
 
   final _tabs = [
     _TabItem(label: 'All Calls', icon: Icons.phone),
@@ -46,6 +47,10 @@ class _HomeTabState extends State<HomeTab> {
   @override
   void initState() {
     super.initState();
+    _syncRotateController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    );
     _loadProfile().then((_) {
       // Reset sync timestamp at the start of each day
       CallLogService.resetSyncTimestamp();
@@ -62,6 +67,7 @@ class _HomeTabState extends State<HomeTab> {
   void dispose() {
     _syncTimer?.cancel();
     _searchController.dispose();
+    _syncRotateController.dispose();
     super.dispose();
   }
 
@@ -98,7 +104,10 @@ class _HomeTabState extends State<HomeTab> {
   /// Called every 30s — only syncs NEW entries since the last sync.
   Future<void> _syncNewCalls() async {
     if (_companyCode.isEmpty || _mobileNumber.isEmpty) return;
-    if (mounted) setState(() => _isSyncing = true);
+    if (mounted) {
+      setState(() => _isSyncing = true);
+      _syncRotateController.repeat();
+    }
     try {
       final res = await CallLogService.syncNewEntries(
         companyCode: _companyCode,
@@ -126,7 +135,10 @@ class _HomeTabState extends State<HomeTab> {
         UIUtils.showPremiumSnackBar(context, 'Sync error: $e', isError: true);
       }
     } finally {
-      if (mounted) setState(() => _isSyncing = false);
+      if (mounted) {
+        setState(() => _isSyncing = false);
+        _syncRotateController.stop();
+      }
     }
   }
 
@@ -244,20 +256,6 @@ class _HomeTabState extends State<HomeTab> {
     return DateFormat('hh:mm a').format(dt);
   }
 
-  Color _callTypeColor(CallType? type) {
-    switch (type) {
-      case CallType.incoming:
-        return const Color(0xFF4CAF50);
-      case CallType.outgoing:
-        return const Color(0xFFFFA726);
-      case CallType.missed:
-        return const Color(0xFFEF5350);
-      case CallType.rejected:
-        return const Color(0xFFEF5350);
-      default:
-        return Colors.indigo;
-    }
-  }
 
   IconData _callTypeIcon(CallType? type) {
     switch (type) {
@@ -276,175 +274,146 @@ class _HomeTabState extends State<HomeTab> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Your Activity Section (The header is now shared in DashboardScreen)
+    final logs = _filteredLogs;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Fixed Top Section: Only the Tab Filters
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+          child: _buildTabRow(),
+        ),
 
-          // Your Activity Section 
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Section title
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Your Activity',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1A1E2E),
-                      ),
-                    ),
-                    // Live sync indicator
-                    GestureDetector(
-                      onTap: _syncNewCalls,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_isSyncing)
-                            const SizedBox(
-                              width: 12,
-                              height: 12,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.indigo,
-                              ),
-                            )
-                          else
-                            Icon(Icons.sync, size: 14, color: Colors.indigo.shade400),
-                          const SizedBox(width: 4),
-                          Text(
-                            _lastSyncTime != null
-                                ? 'Synced ${DateFormat('hh:mm a').format(_lastSyncTime!)}'
-                                : 'Syncing…',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.indigo.shade400,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Tab Filters
-                _buildTabRow(),
-
-                const SizedBox(height: 16),
-
-                // Search Bar
-                _buildSearchBar(),
-
-                const SizedBox(height: 20),
-
-                // Call Log List
-                _isLoadingLogs
-                    ? const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(40),
-                          child: CircularProgressIndicator(color: Colors.indigo),
+        // Scrollable Section: Search bar + Call Logs
+        Expanded(
+          child: _isLoadingLogs
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(40),
+                    child: CircularProgressIndicator(color: Color(0xFF3D7DFE)),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                  itemCount: logs.isEmpty ? 2 : logs.length + 1, // +1 for the search bar
+                  itemBuilder: (context, index) {
+                    // First item is always the search and sync bar
+                    if (index == 0) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 20, top: 4),
+                        child: Row(
+                          children: [
+                            Expanded(child: _buildSearchBar()),
+                            const SizedBox(width: 12),
+                            _buildSyncIndicator(),
+                          ],
                         ),
-                      )
-                    : _filteredLogs.isEmpty
-                        ? _buildEmptyState()
-                        : Column(
-                            children: _filteredLogs.map((e) => _buildCallCard(e)).toList(),
-                          ),
-              ],
-            ),
-          ),
-        ],
-      ),
+                      );
+                    }
+
+                    // For index > 0, we show the list content or empty state
+                    if (logs.isEmpty) {
+                      return _buildEmptyState();
+                    }
+
+                    return _buildCallCard(logs[index - 1]);
+                  },
+                ),
+        ),
+      ],
     );
   }
 
   Widget _buildTabRow() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: List.generate(_tabs.length, (i) {
-        final isSelected = _selectedTab == i;
-        Color tabColor;
-        switch (i) {
-          case 1:
-            tabColor = const Color(0xFF4CAF50);
-            break;
-          case 2:
-            tabColor = const Color(0xFFFFA726);
-            break;
-          case 3:
-            tabColor = const Color(0xFFEF5350);
-            break;
-          case 4:
-            tabColor = const Color(0xFFEF5350);
-            break;
-          default:
-            tabColor = Colors.indigo;
-        }
-
-        return GestureDetector(
-          onTap: () => setState(() => _selectedTab = i),
-          child: Column(
-            children: [
-              Icon(
-                _tabs[i].icon,
-                color: isSelected ? tabColor : Colors.grey.shade400,
-                size: 22,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _tabs[i].label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected ? tabColor : Colors.grey.shade500,
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: List.generate(_tabs.length, (i) {
+          final isSelected = _selectedTab == i;
+          final tab = _tabs[i];
+          return Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: GestureDetector(
+              onTap: () => setState(() => _selectedTab = i),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isSelected ? 16 : 14,
+                  vertical: 10,
                 ),
-              ),
-              const SizedBox(height: 4),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                height: 3,
-                width: isSelected ? 28 : 0,
                 decoration: BoxDecoration(
-                  color: tabColor,
-                  borderRadius: BorderRadius.circular(2),
+                  color: isSelected ? Colors.black : const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.15),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          )
+                        ]
+                      : [],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      tab.icon,
+                      size: 19,
+                      color: isSelected ? Colors.white : Colors.black54,
+                    ),
+                    ClipRect(
+                      child: AnimatedSize(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                        child: !isSelected
+                            ? const SizedBox.shrink()
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const SizedBox(width: 8),
+                                  AnimatedOpacity(
+                                    duration: const Duration(milliseconds: 200),
+                                    opacity: isSelected ? 1.0 : 0.0,
+                                    child: Text(
+                                      tab.label,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                        fontFamily: 'Inter',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        );
-      }),
+            ),
+          );
+        }),
+      ),
     );
   }
 
   Widget _buildSearchBar() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFF3F4F6),
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: TextField(
         controller: _searchController,
         onChanged: (v) => setState(() => _searchQuery = v),
-        style: const TextStyle(fontSize: 14),
+        style: const TextStyle(fontSize: 14, fontFamily: 'Inter'),
         decoration: InputDecoration(
-          hintText: 'Search by name or number…',
-          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-          prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
+          hintText: 'Search…',
+          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13, fontFamily: 'Inter'),
+          prefixIcon: Icon(Icons.search, color: Colors.grey.shade400, size: 20),
           suffixIcon: _searchQuery.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.clear, size: 18),
@@ -456,169 +425,263 @@ class _HomeTabState extends State<HomeTab> {
                 )
               : null,
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSyncIndicator() {
+    const primaryBlue = Color(0xFF3D7DFE);
+    return GestureDetector(
+      onTap: _isSyncing ? null : _syncNewCalls,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        width: 65,
+        height: 48,
+        decoration: BoxDecoration(
+          color: _isSyncing ? primaryBlue.withOpacity(0.15) : primaryBlue.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: primaryBlue.withOpacity(0.1),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            RotationTransition(
+              turns: _syncRotateController,
+              child: Icon(
+                Icons.sync,
+                size: 20,
+                color: primaryBlue,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              _isSyncing 
+                ? 'Syncing' 
+                : (_lastSyncTime != null ? DateFormat('h:mm a').format(_lastSyncTime!) : 'Sync'),
+              style: const TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+                color: primaryBlue,
+                fontFamily: 'Inter',
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildCallCard(CallLogEntry entry) {
+    final String name = entry.name ?? 'Unknown';
+    final String number = entry.number ?? '';
     final effectiveType = _getEffectiveCallType(entry);
-    final typeColor = _callTypeColor(effectiveType);
     final typeIcon = _callTypeIcon(effectiveType);
-    final name = (entry.name?.isNotEmpty == true) ? entry.name! : 'Unknown';
-    final number = entry.number ?? '';
     final time = _formatTime(entry.timestamp);
     final duration = _formatDuration(entry.duration);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        color: const Color(0xFF3D7DFE), // Vibrant blue from the design
+        borderRadius: BorderRadius.circular(24),
+        // boxShadow: [
+        //   BoxShadow(
+        //     color: const Color(0xFF3D7DFE).withOpacity(0.3),
+        //     blurRadius: 15,
+        //     offset: const Offset(0, 8),
+        //   ),
+        // ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-        child: Column(
-          children: [
-            Row(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: const Color.fromARGB(255, 244, 244, 244),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(typeIcon, color: typeColor, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
+                // Top Row: Profile Icon, Name, Status Icon, Time
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.9),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.person_outline,
+                        color: Color(0xFF3D7DFE),
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
                         name,
                         style: const TextStyle(
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                          color: Color(0xFF1A1E2E),
+                          color: Colors.white,
+                          fontFamily: 'Inter',
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        number,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Text(
-                  time,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade500,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.indigo.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    duration,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.indigo.shade700,
-                      fontWeight: FontWeight.w600,
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    // Status icon circle
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        typeIcon,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      time,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white.withOpacity(0.8),
+                        fontFamily: 'Inter',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                // Bottom Row: Phone and Duration
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      number,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white.withOpacity(0.9),
+                        fontWeight: FontWeight.w500,
+                        fontFamily: 'Inter',
+                      ),
+                    ),
+                    Text(
+                      duration,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withOpacity(0.7),
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Inter',
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                children: [
-                  _actionIcon(
-                    icon: Icons.call,
-                    color: Colors.indigo.shade400,
-                    onTap: () async {
-                      final uri = Uri(scheme: 'tel', path: number);
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri);
-                      }
-                    },
-                  ),
-                  const SizedBox(width: 16),
-                  GestureDetector(
-                    onTap: () async {
-                      final cleaned = number.replaceAll(RegExp(r'[^\d]'), '');
-                      // Substitute {name} placeholder with actual contact name
-                      final contactName = entry.name?.isNotEmpty == true ? entry.name! : number;
-                      final message = _whatsappTemplate.replaceAll('{name}', contactName);
-                      final uri = Uri.parse(
-                        'https://wa.me/$cleaned?text=${Uri.encodeComponent(message)}',
-                      );
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
-                      }
-                    },
-                    child: Container(
-                      width: 26,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF25D366),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Center(
-                        child: FaIcon(FontAwesomeIcons.whatsapp, color: Colors.white, size: 16),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  _actionIcon(
-                    icon: Icons.copy,
-                    color: Colors.grey.shade600,
-                    onTap: () {
-                      Clipboard.setData(ClipboardData(text: number));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Number copied!'),
-                          duration: Duration(seconds: 1),
-                        ),
-                      );
-                    },
-                   ),
-                   const SizedBox(width: 16),
-                   _actionIcon(
-                     icon: Icons.bookmark_border,
-                     color: Colors.amber.shade600,
-                     onTap: () => _showBookmarkDialog(entry),
-                   ),
-                 ],
-               ),
-             ),
-           ],
-         ),
-       ),
-     );
-   }
+          ),
+
+          // Black bottom bar for actions (Floating Look)
+          Container(
+            margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildActionBtn(
+                  icon: Icons.call,
+                  // label: 'Call',
+                  color: Colors.white,
+                  onTap: () async {
+                    final uri = Uri(scheme: 'tel', path: number);
+                    if (await canLaunchUrl(uri)) await launchUrl(uri);
+                  },
+                ),
+                _buildActionBtn(
+                  icon: FontAwesomeIcons.whatsapp,
+                  // label: 'WhatsApp',
+                  color: const Color(0xFF25D366),
+                  onTap: () async {
+                    final cleaned = number.replaceAll(RegExp(r'[^\d]'), '');
+                    final contactName = entry.name?.isNotEmpty == true ? entry.name! : number;
+                    final message = _whatsappTemplate.replaceAll('{name}', contactName);
+                    final uri = Uri.parse('https://wa.me/$cleaned?text=${Uri.encodeComponent(message)}');
+                    if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  },
+                ),
+                _buildActionBtn(
+                  icon: Icons.copy_rounded,
+                  // label: 'Copy',
+                  color: Colors.grey.shade400,
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: number));
+                    UIUtils.showPremiumSnackBar(context, 'Number copied!');
+                  },
+                ),
+                _buildActionBtn(
+                  icon: Icons.bookmark_border_rounded,
+                  // label: 'Save',
+                  color: Colors.amber.shade400,
+                  onTap: () => _showBookmarkDialog(entry),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionBtn({
+    required IconData icon,
+    // required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 6),
+          // Text(
+          //   label,
+          //   style: const TextStyle(
+          //     color: Colors.white70,
+          //     fontSize: 10,
+          //     fontWeight: FontWeight.w500,
+          //     fontFamily: 'Inter',
+          //   ),
+          // ),
+        ],
+      ),
+    );
+  }
 
    Future<void> _showBookmarkDialog(dynamic entry) async {
+     const primaryBlue = Color(0xFF3D7DFE);
      final name = (entry.name?.isNotEmpty == true) ? entry.name! : 'Unknown';
      final number = entry.number ?? '';
      final ts = entry.timestamp ?? 0;
@@ -626,93 +689,231 @@ class _HomeTabState extends State<HomeTab> {
      bool saving = false;
      String errorMsg = '';
 
-     await showDialog(
+     await UIUtils.showSmoothDialog(
        context: context,
        builder: (ctx) => StatefulBuilder(
-         builder: (ctx, setDialogState) => AlertDialog(
-           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-           title: Row(
-             children: [
-               Icon(Icons.bookmark, color: Colors.amber.shade600, size: 22),
-               const SizedBox(width: 8),
-               Expanded(child: Text('Bookmark: $name', overflow: TextOverflow.ellipsis)),
-             ],
-           ),
-           content: Column(
-             mainAxisSize: MainAxisSize.min,
-             children: [
-               Text(number, style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
-               const SizedBox(height: 14),
-               TextField(
-                 controller: descCtrl,
-                 maxLines: 3,
-                 decoration: InputDecoration(
-                   hintText: 'Add a note or description…',
-                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                   contentPadding: const EdgeInsets.all(12),
+         builder: (ctx, setDialogState) => Dialog(
+           backgroundColor: Colors.transparent,
+           insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+           child: Container(
+             decoration: BoxDecoration(
+               color: Colors.white,
+               borderRadius: BorderRadius.circular(32),
+               boxShadow: [
+                 BoxShadow(
+                   color: Colors.black.withOpacity(0.15),
+                   blurRadius: 30,
+                   offset: const Offset(0, 15),
                  ),
-               ),
-               if (errorMsg.isNotEmpty) ...[
-                 const SizedBox(height: 8),
-                 Text(errorMsg, style: const TextStyle(color: Colors.red, fontSize: 12)),
                ],
-             ],
+             ),
+             child: Column(
+               mainAxisSize: MainAxisSize.min,
+               children: [
+                 // Top Section with Icon
+                 Container(
+                   width: double.infinity,
+                   padding: const EdgeInsets.symmetric(vertical: 30),
+                   decoration: BoxDecoration(
+                     color: Colors.amber.shade50.withOpacity(0.5),
+                     borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+                   ),
+                   child: Center(
+                     child: Container(
+                       padding: const EdgeInsets.all(16),
+                       decoration: BoxDecoration(
+                         color: Colors.amber.shade100,
+                         shape: BoxShape.circle,
+                       ),
+                       child: Icon(Icons.bookmark_rounded, color: Colors.amber.shade700, size: 36),
+                     ),
+                   ),
+                 ),
+                 
+                 Padding(
+                   padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                   child: Column(
+                     children: [
+                       const Text(
+                         'Save Bookmark',
+                         style: TextStyle(
+                           fontSize: 22,
+                           fontWeight: FontWeight.w900,
+                           color: Color(0xFF111827),
+                           fontFamily: 'Inter',
+                           letterSpacing: -0.5,
+                         ),
+                       ),
+                       const SizedBox(height: 4),
+                       Text(
+                         'Save contact for quick access',
+                         style: TextStyle(
+                           fontSize: 14,
+                           color: Colors.grey.shade500,
+                           fontFamily: 'Inter',
+                         ),
+                       ),
+                       
+                       const SizedBox(height: 24),
+                       
+                       // Contact Details Card
+                       Container(
+                         padding: const EdgeInsets.all(16),
+                         decoration: BoxDecoration(
+                           color: const Color(0xFFF9FAFB),
+                           borderRadius: BorderRadius.circular(20),
+                           border: Border.all(color: const Color(0xFFE5E7EB)),
+                         ),
+                         child: Row(
+                           children: [
+                             CircleAvatar(
+                               radius: 20,
+                               backgroundColor: primaryBlue.withOpacity(0.1),
+                               child: const Icon(Icons.person_rounded, color: primaryBlue, size: 20),
+                             ),
+                             const SizedBox(width: 12),
+                             Expanded(
+                               child: Column(
+                                 crossAxisAlignment: CrossAxisAlignment.start,
+                                 children: [
+                                   Text(
+                                     name,
+                                     maxLines: 1,
+                                     overflow: TextOverflow.ellipsis,
+                                     style: const TextStyle(
+                                       fontWeight: FontWeight.bold,
+                                       fontSize: 15,
+                                       color: Color(0xFF111827),
+                                       fontFamily: 'Inter',
+                                     ),
+                                   ),
+                                   Text(
+                                     number,
+                                     style: TextStyle(
+                                       fontSize: 13,
+                                       color: Colors.grey.shade500,
+                                       fontFamily: 'Inter',
+                                     ),
+                                   ),
+                                 ],
+                               ),
+                             ),
+                           ],
+                         ),
+                       ),
+                       
+                       const SizedBox(height: 20),
+                       
+                       // Description Input
+                       Container(
+                         decoration: BoxDecoration(
+                           color: Colors.white,
+                           borderRadius: BorderRadius.circular(20),
+                           border: Border.all(color: const Color(0xFFE5E7EB)),
+                         ),
+                         child: TextField(
+                           controller: descCtrl,
+                           maxLines: 3,
+                           style: const TextStyle(fontSize: 14, fontFamily: 'Inter'),
+                           decoration: InputDecoration(
+                             hintText: 'Add a note or description...',
+                             hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                             border: InputBorder.none,
+                             contentPadding: const EdgeInsets.all(16),
+                           ),
+                         ),
+                       ),
+                       
+                       if (errorMsg.isNotEmpty) ...[
+                         const SizedBox(height: 12),
+                         Row(
+                           children: [
+                             const Icon(Icons.error_outline_rounded, color: Colors.red, size: 14),
+                             const SizedBox(width: 6),
+                             Expanded(
+                               child: Text(
+                                 errorMsg,
+                                 style: const TextStyle(color: Colors.red, fontSize: 12, fontFamily: 'Inter'),
+                               ),
+                             ),
+                           ],
+                         ),
+                       ],
+                       
+                       const SizedBox(height: 28),
+                       
+                       // Action Buttons
+                       Row(
+                         children: [
+                           Expanded(
+                             child: TextButton(
+                               onPressed: saving ? null : () => Navigator.pop(ctx),
+                               style: TextButton.styleFrom(
+                                 padding: const EdgeInsets.symmetric(vertical: 16),
+                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                               ),
+                               child: Text(
+                                 'Cancel',
+                                 style: TextStyle(
+                                   color: Colors.grey.shade600,
+                                   fontWeight: FontWeight.bold,
+                                   fontFamily: 'Inter',
+                                 ),
+                               ),
+                             ),
+                           ),
+                           const SizedBox(width: 12),
+                           Expanded(
+                             child: ElevatedButton(
+                               onPressed: saving
+                                   ? null
+                                   : () async {
+                                       setDialogState(() { saving = true; errorMsg = ''; });
+                                       final res = await ApiService.addBookmark(
+                                         companyCode: _companyCode,
+                                         employeePhone: _mobileNumber,
+                                         contactNumber: number,
+                                         contactName: name,
+                                         description: descCtrl.text.trim(),
+                                         callTimestamp: ts is int ? ts : 0,
+                                       );
+                                       if (res['success'] == true) {
+                                         if (ctx.mounted) Navigator.pop(ctx);
+                                         if (mounted) {
+                                           UIUtils.showPremiumSnackBar(context, '📌 Bookmarked!');
+                                         }
+                                       } else {
+                                         setDialogState(() { saving = false; errorMsg = res['message'] ?? 'Failed to save.'; });
+                                       }
+                                     },
+                               style: ElevatedButton.styleFrom(
+                                 backgroundColor: primaryBlue,
+                                 foregroundColor: Colors.white,
+                                 elevation: 0,
+                                 padding: const EdgeInsets.symmetric(vertical: 16),
+                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                               ),
+                               child: saving
+                                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                   : const Text(
+                                       'Save Note',
+                                       style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Inter'),
+                                     ),
+                             ),
+                           ),
+                         ],
+                       ),
+                     ],
+                   ),
+                 ),
+               ],
+             ),
            ),
-           actions: [
-             TextButton(
-               onPressed: () => Navigator.pop(ctx),
-               child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-             ),
-             ElevatedButton.icon(
-               style: ElevatedButton.styleFrom(
-                 backgroundColor: Colors.amber.shade600,
-                 foregroundColor: Colors.white,
-                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-               ),
-               icon: saving
-                   ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                   : const Icon(Icons.bookmark_add, size: 16),
-               label: const Text('Save'),
-               onPressed: saving
-                   ? null
-                   : () async {
-                       setDialogState(() { saving = true; errorMsg = ''; });
-                       final res = await ApiService.addBookmark(
-                         companyCode: _companyCode,
-                         employeePhone: _mobileNumber,
-                         contactNumber: number,
-                         contactName: name,
-                         description: descCtrl.text.trim(),
-                         callTimestamp: ts is int ? ts : 0,
-                       );
-                       if (res['success'] == true) {
-                         if (ctx.mounted) Navigator.pop(ctx);
-                         if (mounted) {
-                           ScaffoldMessenger.of(context).showSnackBar(
-                             const SnackBar(content: Text('📌 Bookmarked!'), duration: Duration(seconds: 1)),
-                           );
-                         }
-                       } else {
-                         setDialogState(() { saving = false; errorMsg = res['message'] ?? 'Failed to save.'; });
-                       }
-                     },
-             ),
-           ],
          ),
        ),
      );
    }
 
-  Widget _actionIcon({
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Icon(icon, size: 22, color: color),
-    );
-  }
 
   Widget _buildEmptyState() {
     return Center(

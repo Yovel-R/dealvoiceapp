@@ -12,6 +12,24 @@ class ApiService {
     // return 'http://10.139.243.125:4000/api';
   }
 
+  // ── Verify Company Code ───────────────────────────────────
+  static Future<Map<String, dynamic>> verifyCompanyCode(String companyCode) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/auth/company/$companyCode'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return jsonDecode(response.body);
+      } else {
+        final body = jsonDecode(response.body);
+        return {'success': false, 'message': body['message'] ?? 'Company code not found.'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Verification failed: $e'};
+    }
+  }
+
   // ── Employee Login ────────────────────────────────────────
   static Future<Map<String, dynamic>> loginEmployee(
       String companyCode, String mobile) async {

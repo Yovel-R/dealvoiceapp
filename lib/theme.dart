@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-const Color primaryColor = Color(0xFF6366F1);
+const Color primaryColor = Color(0xFF4B58FF);
 const Color secondaryColor = Color(0xFFA855F7);
-const Color backgroundColor = Color(0xFFF8FAFC);
+const Color backgroundColor = Colors.white;
 const Color cardColor = Colors.white;
 const Color textPrimary = Color(0xFF0F172A);
 const Color textSecondary = Color(0xFF475569);
@@ -11,7 +11,7 @@ const Color borderColor = Color(0xFFE2E8F0);
 final ThemeData appTheme = ThemeData(
   primaryColor: primaryColor,
   scaffoldBackgroundColor: backgroundColor,
-  fontFamily: 'Inter', // Assuming standard font
+  // fontFamily: 'Inter', 
   colorScheme: const ColorScheme.light(
     primary: primaryColor,
     secondary: secondaryColor,

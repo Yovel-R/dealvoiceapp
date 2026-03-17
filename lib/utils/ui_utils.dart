@@ -28,6 +28,7 @@ class UIUtils {
     BuildContext context,
     String message, {
     bool isError = false,
+    bool showAtTop = false,
   }) {
     final overlay = Overlay.of(context);
     late OverlayEntry entry;
@@ -36,6 +37,7 @@ class UIUtils {
       builder: (context) => _PremiumToast(
         message: message,
         isError: isError,
+        showAtTop: showAtTop,
         onDismiss: () => entry.remove(),
       ),
     );
@@ -44,14 +46,142 @@ class UIUtils {
   }
 }
 
+class PremiumDialog extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String? subtitle;
+  final Widget? content;
+  final List<Widget>? actions;
+  final bool isDestructive;
+
+  const PremiumDialog({
+    super.key,
+    required this.icon,
+    this.iconColor = const Color(0xFF3D7DFE),
+    required this.title,
+    this.subtitle,
+    this.content,
+    this.actions,
+    this.isDestructive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveIconColor = isDestructive ? Colors.red.shade700 : iconColor;
+    final headerBgColor = isDestructive 
+        ? Colors.red.shade50.withOpacity(0.5) 
+        : iconColor.withOpacity(0.05);
+    final iconCircleColor = isDestructive 
+        ? Colors.red.shade100 
+        : iconColor.withOpacity(0.1);
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(32),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 30,
+              offset: const Offset(0, 15),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header Section
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 30),
+              decoration: BoxDecoration(
+                color: headerBgColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+              ),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: iconCircleColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: effectiveIconColor, size: 36),
+                ),
+              ),
+            ),
+            
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+              child: Column(
+                children: [
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF111827),
+                      fontFamily: 'Inter',
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      subtitle!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade500,
+                        fontFamily: 'Inter',
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                  
+                  if (content != null) ...[
+                     const SizedBox(height: 24),
+                     content!,
+                  ],
+                  
+                  if (actions != null) ...[
+                    const SizedBox(height: 32),
+                    Row(
+                      children: actions!.map((a) {
+                        final isLast = actions!.last == a;
+                        return Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(right: isLast ? 0 : 12),
+                            child: a,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PremiumToast extends StatefulWidget {
   final String message;
   final bool isError;
+  final bool showAtTop;
   final VoidCallback onDismiss;
 
   const _PremiumToast({
     required this.message,
     required this.isError,
+    required this.showAtTop,
     required this.onDismiss,
   });
 
@@ -73,7 +203,7 @@ class _PremiumToastState extends State<_PremiumToast> with SingleTickerProviderS
     );
 
     _offset = Tween<Offset>(
-      begin: const Offset(0, 0.8),
+      begin: Offset(0, widget.showAtTop ? -1.75 : 1.0),
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _controller,
@@ -105,9 +235,12 @@ class _PremiumToastState extends State<_PremiumToast> with SingleTickerProviderS
   Widget build(BuildContext context) {
     return SafeArea(
       child: Align(
-        alignment: Alignment.bottomCenter,
+        alignment: widget.showAtTop ? Alignment.topCenter : Alignment.bottomCenter,
         child: Padding(
-          padding: const EdgeInsets.only(bottom: 100), // Space above bottom nav
+          padding: EdgeInsets.only(
+            top: widget.showAtTop ? 20 : 0,
+            bottom: widget.showAtTop ? 0 : 100,
+          ),
           child: SlideTransition(
             position: _offset,
             child: FadeTransition(
