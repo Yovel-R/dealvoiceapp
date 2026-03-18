@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../utils/ui_utils.dart';
+import '../../services/background_sync_service.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -107,6 +108,9 @@ class _ProfileTabState extends State<ProfileTab> {
     );
 
     if (confirm == true) {
+      // Stop background service before clearing data
+      await BackgroundSyncService.stopAll();
+      
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
       if (mounted) {

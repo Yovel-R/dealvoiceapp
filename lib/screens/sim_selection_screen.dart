@@ -124,8 +124,11 @@ class _SimSelectionScreenState extends State<SimSelectionScreen> {
     // Detect if the user had to manually enter their number (SIM didn't provide it)
     final isManualEntry = (sim['number']?.toString() ?? '').isEmpty || (carrier == 'Unknown Carrier' && subscriptionId.isEmpty);
 
+    final displayName = sim['displayName']?.toString() ?? '';
+
     await prefs.setBool('isManualEntry', isManualEntry);
     await prefs.setString('selectedSimCarrier', effectiveCarrier);
+    await prefs.setString('selectedSimDisplayName', displayName);
     await prefs.setString('selectedSimSubscriptionId', subscriptionId);
     await prefs.setInt('selectedSimSlot', slot);
 

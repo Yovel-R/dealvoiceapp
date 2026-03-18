@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../theme.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'company_code_screen.dart';
 import 'dashboard_screen.dart';
 
@@ -22,6 +22,13 @@ class _SplashScreenState extends State<SplashScreen> {
     await Future.delayed(const Duration(seconds: 2));
     final prefs = await SharedPreferences.getInstance();
     final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+
+    // Request all required permissions for background sync
+    await [
+      Permission.notification,
+      Permission.phone,
+      Permission.contacts,
+    ].request();
 
     if (!mounted) return;
 

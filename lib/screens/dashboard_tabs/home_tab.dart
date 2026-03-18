@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import '../../services/api_service.dart';
 import '../../services/call_log_service.dart';
 
@@ -31,8 +32,9 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   String _searchQuery = '';
   int _selectedTab = 0; // 0=All, 1=Incoming, 2=Outgoing, 3=Missed, 4=Rejected
   DateTime? _lastSyncTime;
+  bool _isServiceRunning = false;
+  StreamSubscription? _serviceSubscription;
 
-  Timer? _syncTimer;
   final TextEditingController _searchController = TextEditingController();
   late AnimationController _syncRotateController;
 
@@ -56,16 +58,34 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
       CallLogService.resetSyncTimestamp();
       // First full load
       _fetchAllAndSync();
-      // Then start live 30-second interval
-      _syncTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-        _syncNewCalls();
-      });
+      // Monitor background service status
+      _monitorService();
+    });
+  }
+
+  void _monitorService() {
+    _serviceSubscription = FlutterBackgroundService().on('update').listen((event) {
+      if (mounted) {
+        setState(() {
+          _isServiceRunning = true;
+          _lastSyncTime = DateTime.now();
+        });
+        // Optionally refresh logs if new calls were detected
+        if (event?['hasNew'] == true) {
+          _fetchAllAndSync();
+        }
+      }
+    });
+
+    // Check initial status
+    FlutterBackgroundService().isRunning().then((running) {
+      if (mounted) setState(() => _isServiceRunning = running);
     });
   }
 
   @override
   void dispose() {
-    _syncTimer?.cancel();
+    _serviceSubscription?.cancel();
     _searchController.dispose();
     _syncRotateController.dispose();
     super.dispose();
@@ -433,40 +453,46 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
 
   Widget _buildSyncIndicator() {
     const primaryBlue = Color(0xFF3D7DFE);
+    const successGreen = Color(0xFF10B981);
+
     return GestureDetector(
       onTap: _isSyncing ? null : _syncNewCalls,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
-        width: 65,
+        width: 75,
         height: 48,
         decoration: BoxDecoration(
-          color: _isSyncing ? primaryBlue.withOpacity(0.15) : primaryBlue.withOpacity(0.08),
+          color: _isServiceRunning 
+              ? successGreen.withOpacity(0.08)
+              : (_isSyncing ? primaryBlue.withOpacity(0.15) : primaryBlue.withOpacity(0.08)),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: primaryBlue.withOpacity(0.1),
+            color: _isServiceRunning ? successGreen.withOpacity(0.2) : primaryBlue.withOpacity(0.1),
             width: 1,
           ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            RotationTransition(
-              turns: _syncRotateController,
-              child: Icon(
-                Icons.sync,
-                size: 20,
-                color: primaryBlue,
-              ),
-            ),
+            _isServiceRunning 
+              ? Icon(Icons.bolt_rounded, size: 20, color: successGreen)
+              : RotationTransition(
+                  turns: _syncRotateController,
+                  child: Icon(Icons.sync, size: 20, color: primaryBlue),
+                ),
             const SizedBox(height: 2),
             Text(
-              _isSyncing 
-                ? 'Syncing' 
-                : (_lastSyncTime != null ? DateFormat('h:mm a').format(_lastSyncTime!) : 'Sync'),
-              style: const TextStyle(
+              _isServiceRunning 
+                ? 'Auto-Sync' 
+                : (_isSyncing 
+                    ? 'Syncing' 
+                    : (_lastSyncTime != null 
+                        ? DateFormat('h:mm a').format(_lastSyncTime!) 
+                        : 'Manual')),
+              style: TextStyle(
                 fontSize: 9,
                 fontWeight: FontWeight.bold,
-                color: primaryBlue,
+                color: _isServiceRunning ? successGreen : primaryBlue,
                 fontFamily: 'Inter',
               ),
             ),
@@ -500,7 +526,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(20.0),
+            padding: const EdgeInsets.only(top: 16,left: 20, right: 20,bottom: 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -561,7 +587,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                     ),
                   ],
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 9),
                 // Bottom Row: Phone and Duration
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -593,7 +619,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
           // Black bottom bar for actions (Floating Look)
           Container(
             margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             decoration: BoxDecoration(
               color: const Color(0xFF1E1E1E),
               borderRadius: BorderRadius.circular(20),
@@ -665,7 +691,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, color: color, size: 20),
-          const SizedBox(height: 6),
+          // const SizedBox(height: 6),
           // Text(
           //   label,
           //   style: const TextStyle(
