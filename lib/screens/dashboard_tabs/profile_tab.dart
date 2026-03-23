@@ -18,6 +18,9 @@ class _ProfileTabState extends State<ProfileTab> {
   // Removed redundant header fields
 
   final TextEditingController _templateCtrl = TextEditingController();
+  final TextEditingController _smsTemplateCtrl = TextEditingController();
+  String _smsTemplate = 'Hi {name}!';
+  bool _showFloatingActions = true;
 
   @override
   void initState() {
@@ -31,6 +34,9 @@ class _ProfileTabState extends State<ProfileTab> {
     setState(() {
       _employeeName = prefs.getString('employeeName') ?? 'Employee';
       _templateCtrl.text = prefs.getString('whatsappTemplate') ?? 'Hi {name}!';
+      _smsTemplate = prefs.getString('smsTemplate') ?? 'Hi {name}!';
+      _smsTemplateCtrl.text = _smsTemplate;
+      _showFloatingActions = prefs.getBool('showFloatingActions') ?? true;
       _appVersion = '${packageInfo.version} (${packageInfo.buildNumber})';
     });
   }
@@ -40,9 +46,24 @@ class _ProfileTabState extends State<ProfileTab> {
     await prefs.setString('whatsappTemplate', _templateCtrl.text.trim());
   }
 
+  Future<void> _saveSmsTemplate() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('smsTemplate', _smsTemplateCtrl.text.trim());
+    setState(() {
+      _smsTemplate = _smsTemplateCtrl.text.trim();
+    });
+  }
+
+  Future<void> _toggleFloatingActions(bool val) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('showFloatingActions', val);
+    setState(() => _showFloatingActions = val);
+  }
+
   @override
   void dispose() {
     _templateCtrl.dispose();
+    _smsTemplateCtrl.dispose();
     super.dispose();
   }
 
@@ -246,6 +267,133 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
+  void _showSMSTemplateDialog() {
+    UIUtils.showSmoothDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return PremiumDialog(
+            icon: Icons.message_rounded,
+            iconColor: Colors.blue.shade600,
+            title: 'SMS Format',
+            subtitle: 'Customize your auto-fill SMS message. Use {name} for dynamic placeholders.',
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Quick-insert chip
+                GestureDetector(
+                  onTap: () {
+                    final pos = _smsTemplateCtrl.selection.baseOffset;
+                    final text = _smsTemplateCtrl.text;
+                    const insert = '{name}';
+                    final validPos = pos < 0 ? text.length : pos;
+                    final newText = text.substring(0, validPos) + insert + text.substring(validPos);
+                    _smsTemplateCtrl.value = TextEditingValue(
+                      text: newText,
+                      selection: TextSelection.collapsed(offset: validPos + insert.length),
+                    );
+                    setDialogState(() {});
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade600.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.shade600.withOpacity(0.2)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                         Icon(Icons.add_circle_outline_rounded, color: Color(0xFF1E3A8A), size: 14),
+                         SizedBox(width: 6),
+                         Text(
+                          'Insert {name}',
+                          style: TextStyle(fontSize: 12, color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Template text field
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9FAFB),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: TextField(
+                    controller: _smsTemplateCtrl,
+                    maxLines: 4,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: const InputDecoration(
+                      hintText: 'e.g. Hi {name}, following up on your call.',
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.all(16),
+                    ),
+                    style: const TextStyle(fontSize: 14, fontFamily: 'Inter'),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Live preview
+                if (_smsTemplateCtrl.text.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.blue.shade200.withOpacity(0.5)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('LIVE PREVIEW', style: TextStyle(fontSize: 9, color: Color(0xFF1E3A8A), fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+                        const SizedBox(height: 8),
+                        Text(
+                          _smsTemplateCtrl.text.replaceAll('{name}', _employeeName.isNotEmpty ? _employeeName : 'John'),
+                          style: const TextStyle(fontSize: 13, color: Color(0xFF1E3A8A), fontWeight: FontWeight.w500, fontFamily: 'Inter'),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: Text('Cancel', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold, fontFamily: 'Inter')),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  await _saveSmsTemplate();
+                  if (context.mounted) Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF3D7DFE),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
+                ),
+                child: const Text('Save Format', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Inter')),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF3D7DFE);
@@ -268,6 +416,20 @@ class _ProfileTabState extends State<ProfileTab> {
                   iconColor: const Color(0xFF25D366),
                   subtitle: 'Customize your auto-fill message',
                   onTap: _showWhatsAppTemplateDialog,
+                ),
+                _buildMenuTile(
+                  icon: Icons.message_rounded,
+                  title: 'SMS Format',
+                  iconColor: Colors.blue.shade600,
+                  subtitle: 'Customize your auto-fill SMS',
+                  onTap: _showSMSTemplateDialog,
+                ),
+                _buildToggleTile(
+                  icon: Icons.touch_app_rounded,
+                  title: 'Show Quick action',
+                  subtitle: 'While disabled, you can reveal by tapping a contact',
+                  value: _showFloatingActions,
+                  onChanged: _toggleFloatingActions,
                 ),
               ],
             ),
@@ -418,6 +580,63 @@ class _ProfileTabState extends State<ProfileTab> {
             : null,
         trailing: Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400, size: 20),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      ),
+    );
+  }
+  Widget _buildToggleTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required Function(bool) onChanged,
+    Color iconColor = const Color(0xFF3D7DFE),
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE5E7EB).withOpacity(0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: SwitchListTile(
+        value: value,
+        onChanged: onChanged,
+        secondary: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: iconColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: iconColor, size: 22),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(
+            color: Color(0xFF1A1E2E),
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            fontFamily: 'Inter',
+          ),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(
+            color: Colors.grey.shade500,
+            fontSize: 12,
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        activeColor: iconColor,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
     );
   }

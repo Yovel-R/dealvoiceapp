@@ -40,7 +40,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double _getHeaderHeight() {
     switch (_currentIndex) {
       case 0:
-        return 170.0; // Home
+        return 135.0; // Home
       case 1:
         return 120.0; // Analytics
       case 2:
@@ -129,21 +129,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Image.asset(
-                      'assets/images/DealVoice Logo.png',
-                      height: 38,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) => const Text(
-                        'DEALVOICE',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.5,
-                          color: Colors.black,
-                          fontFamily: 'Inter',
-                        ),
-                      ),
-                    ),
+                    
                     const SizedBox(height: 12),
                     const Text(
                       'Hello,',
@@ -169,10 +155,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               Positioned(
                 right: 0,
-                bottom: 0,
-                top: 0,
+                top: 16,
                 child: Image.asset(
-                  'assets/images/side image.png',
+                  'assets/images/DealVoice Logo.png',
+                  height: 40, 
                   fit: BoxFit.contain,
                   errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
                 ),
@@ -369,7 +355,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          height: 80,
+          height: 65,
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.6),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
@@ -405,7 +391,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: isSelected ? Colors.black : Colors.transparent,
           shape: BoxShape.circle,

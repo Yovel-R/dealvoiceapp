@@ -25,6 +25,9 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   String _companyCode = '';
   String _mobileNumber = '';
   String _whatsappTemplate = 'Hi {name}!';
+  String _smsTemplate = 'Hi {name}!';
+  bool _showFloatingActions = true;
+  String? _expandedCardKey;
 
   List<CallLogEntry> _allCallLogs = [];
   bool _isLoadingLogs = true;
@@ -97,6 +100,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
       _companyCode = prefs.getString('companyCode') ?? 'XXXX';
       _mobileNumber = prefs.getString('mobileNumber') ?? 'N/A';
       _whatsappTemplate = prefs.getString('whatsappTemplate') ?? 'Hi {name}!';
+      _smsTemplate = prefs.getString('smsTemplate') ?? 'Hi {name}!';
+      _showFloatingActions = prefs.getBool('showFloatingActions') ?? true;
     });
   }
 
@@ -300,7 +305,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
       children: [
         // Fixed Top Section: Only the Tab Filters
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
           child: _buildTabRow(),
         ),
 
@@ -510,114 +515,122 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     final time = _formatTime(entry.timestamp);
     final duration = _formatDuration(entry.duration);
 
+    final cardKey = '${entry.number}_${entry.timestamp}';
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF3D7DFE), // Vibrant blue from the design
+        color: const Color(0xFF3D7DFE),
         borderRadius: BorderRadius.circular(24),
-        // boxShadow: [
-        //   BoxShadow(
-        //     color: const Color(0xFF3D7DFE).withOpacity(0.3),
-        //     blurRadius: 15,
-        //     offset: const Offset(0, 8),
-        //   ),
-        // ],
       ),
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 16,left: 20, right: 20,bottom: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top Row: Profile Icon, Name, Status Icon, Time
-                Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
-                        shape: BoxShape.circle,
+          GestureDetector(
+            onTap: () {
+              if (!_showFloatingActions) {
+                setState(() {
+                  _expandedCardKey = (_expandedCardKey == cardKey) ? null : cardKey;
+                });
+              }
+            },
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 16,left: 20, right: 20,bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Top Row: Profile Icon, Name, Status Icon, Time
+                  Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.9),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.person_outline,
+                          color: Color(0xFF3D7DFE),
+                          size: 22,
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.person_outline,
-                        color: Color(0xFF3D7DFE),
-                        size: 22,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            fontFamily: 'Inter',
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                      const SizedBox(width: 8),
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          typeIcon,
                           color: Colors.white,
+                          size: 14,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        time,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white.withOpacity(0.8),
                           fontFamily: 'Inter',
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Status icon circle
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        shape: BoxShape.circle,
+                    ],
+                  ),
+                  const SizedBox(height: 9),
+                  // Bottom Row: Phone and Duration
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        number,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
+                          fontWeight: FontWeight.w500,
+                          fontFamily: 'Inter',
+                        ),
                       ),
-                      child: Icon(
-                        typeIcon,
-                        color: Colors.white,
-                        size: 14,
+                      Text(
+                        duration,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withOpacity(0.7),
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Inter',
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      time,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white.withOpacity(0.8),
-                        fontFamily: 'Inter',
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 9),
-                // Bottom Row: Phone and Duration
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      number,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.white.withOpacity(0.9),
-                        fontWeight: FontWeight.w500,
-                        fontFamily: 'Inter',
-                      ),
-                    ),
-                    Text(
-                      duration,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white.withOpacity(0.7),
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'Inter',
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
 
           // Black bottom bar for actions (Floating Look)
-          Container(
+          AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            child: (_showFloatingActions || _expandedCardKey == cardKey)
+                ? Container(
             margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             decoration: BoxDecoration(
@@ -635,7 +648,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildActionBtn(
-                  icon: Icons.call,
+                  icon: Icons.call_rounded,
                   // label: 'Call',
                   color: Colors.white,
                   onTap: () async {
@@ -656,6 +669,24 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                   },
                 ),
                 _buildActionBtn(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  // label: 'SMS',
+                  color: const Color.fromARGB(255, 227, 229, 255),
+                  onTap: () async {
+                    final cleaned = number.replaceAll(RegExp(r'[^\d]'), '');
+                    final contactName = entry.name?.isNotEmpty == true ? entry.name! : number;
+                    final message = _smsTemplate.replaceAll('{name}', contactName);
+                    final uri = Uri.parse('sms:$cleaned;body=${Uri.encodeComponent(message)}');
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    } else {
+                      // Fallback to ? syntax
+                      final uriFallback = Uri.parse('sms:$cleaned?body=${Uri.encodeComponent(message)}');
+                      if (await canLaunchUrl(uriFallback)) await launchUrl(uriFallback);
+                    }
+                  },
+                ),
+                _buildActionBtn(
                   icon: Icons.copy_rounded,
                   // label: 'Copy',
                   color: Colors.grey.shade400,
@@ -672,6 +703,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                 ),
               ],
             ),
+          ) : const SizedBox.shrink(),
           ),
         ],
       ),

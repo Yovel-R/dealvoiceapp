@@ -189,12 +189,12 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
                   padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
                   children: [
                     _buildDrilldownTabBar(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
                     if (_drilldownTab == 0)
                       _buildSummaryView()
                     else
                       _buildCallsView(),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 32),
                     if (_filteredLogs.isNotEmpty) _buildAnalyticsSection(),
                   ],
                 ),
@@ -378,92 +378,176 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
   Widget _buildSummaryView() {
     final s = _stats;
     if (s['total'] == 0) {
-      return Center(child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 40),
-        child: Text('No data for this period.', style: TextStyle(color: Colors.grey.shade500)),
-      ));
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 40),
+          child: Text('No data for this period.', style: TextStyle(color: Colors.grey.shade500)),
+        ),
+      );
     }
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _statsCard(s),
-    ]);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = constraints.maxWidth > 600 ? 3 : 2;
+        return GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: crossAxisCount,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          childAspectRatio: 1.5,
+          children: [
+            _buildMetricCard(
+              icon: Icons.phone_rounded,
+              iconColor: const Color(0xFF818CF8), // Indigo/Purple
+              label: 'Total Calls',
+              value: '${s['total']}',
+              unit: 'Calls',
+            ),
+            _buildMetricCard(
+              icon: Icons.access_time_rounded,
+              iconColor: const Color(0xFFC084FC), // Purple
+              label: 'Call Duration',
+              value: _fmtDur(s['totalDur']),
+              unit: 'Total',
+            ),
+            _buildMetricCard(
+              icon: Icons.call_received_rounded,
+              iconColor: const Color(0xFF60A5FA), // Blue
+              label: 'Incoming',
+              value: '${s['incoming']}',
+              unit: 'Calls',
+            ),
+            _buildMetricCard(
+              icon: Icons.access_time_rounded,
+              iconColor: const Color(0xFF93C5FD), // Light Blue
+              label: 'In Duration',
+              value: _fmtDur(s['inDur']),
+              unit: 'Talk',
+            ),
+            _buildMetricCard(
+              icon: Icons.call_made_rounded,
+              iconColor: const Color(0xFFFB923C), // Orange
+              label: 'Outgoing',
+              value: '${s['outgoing']}',
+              unit: 'Calls',
+            ),
+            _buildMetricCard(
+              icon: Icons.access_time_rounded,
+              iconColor: const Color(0xFFFDBA74), // Light Orange
+              label: 'Out Duration',
+              value: _fmtDur(s['outDur']),
+              unit: 'Talk',
+            ),
+            _buildMetricCard(
+              icon: Icons.call_missed_rounded,
+              iconColor: const Color(0xFFF87171), // Red
+              label: 'Missed',
+              value: '${s['missed']}',
+              unit: 'Calls',
+            ),
+            _buildMetricCard(
+              icon: Icons.block_rounded,
+              iconColor: const Color(0xFFF472B6), // Pink
+              label: 'Rejected',
+              value: '${s['rejected']}',
+              unit: 'Calls',
+            ),
+          ],
+        );
+      },
+    );
   }
 
-  Widget _statsCard(Map<String, int> s) {
-    const primaryBlue = Color(0xFF3D7DFE);
+  Widget _buildMetricCard({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String value,
+    required String unit,
+  }) {
     return Container(
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: primaryBlue,
-        borderRadius: BorderRadius.circular(24),
-        // boxShadow: [
-        //   BoxShadow(
-        //     color: primaryBlue.withOpacity(0.3),
-        //     blurRadius: 15,
-        //     offset: const Offset(0, 8),
-        //   ),
-        // ],
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE5E7EB).withOpacity(0.8)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                _premiumSRow('Total Calls', '${s['total']}', Icons.phone_android_rounded),
-                const SizedBox(height: 12),
-                _premiumSRow('Call Duration', _fmtDur(s['totalDur']), Icons.timer_rounded),
-              ],
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: Colors.black, size: 18),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1F2937),
+                    fontFamily: 'Inter',
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
-            ),
-            child: Column(
-              children: [
-                _sRow('Connected', '${s['connected']}', bold: true),
-                const Divider(height: 24),
-                _sRow('Incoming', '${s['incoming']}', color: const Color(0xFF3B82F6)),
-                _sRow('Outgoing', '${s['outgoing']}', color: const Color(0xFF22C55E)),
-                _sRow('Missed', '${s['missed']}', color: const Color(0xFFEF4444)),
-                _sRow('Rejected', '${s['rejected']}', color: const Color(0xFFF59E0B)),
-              ],
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.bottomLeft,
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF111827),
+                      fontFamily: 'Inter',
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                unit,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade500,
+                  fontFamily: 'Inter',
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _premiumSRow(String label, String value, IconData icon) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: Colors.white, size: 18),
-        ),
-        const SizedBox(width: 12),
-        Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)),
-        const Spacer(),
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-      ],
-    );
-  }
 
-  Widget _sRow(String label, String value, {Color? color, bool bold = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text(label, style: TextStyle(fontSize: 14, color: bold ? Colors.black87 : Colors.grey.shade600, fontWeight: bold ? FontWeight.w600 : FontWeight.w500)),
-        Text(value, style: TextStyle(fontSize: 14, color: color ?? (bold ? Colors.black87 : Colors.black), fontWeight: bold ? FontWeight.w700 : FontWeight.w600)),
-      ]),
-    );
-  }
 
   Widget _metaCard() {
     final lastCall = _allCallLogs.firstOrNull?.timestamp;
@@ -506,7 +590,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: ListView.separated(
         shrinkWrap: true,
@@ -549,7 +633,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     final hasSub = e.name?.isNotEmpty == true;
     
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Row(
         children: [
           // Icon with background
@@ -575,6 +659,8 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
               children: [
                 Text(
                   name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
@@ -585,6 +671,8 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
                 const SizedBox(height: 2),
                 Text(
                   hasSub ? e.number ?? '' : typeStr.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 11,
                     color: Colors.grey.shade500,
@@ -762,8 +850,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
           topTitles:   const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
-        gridData: FlGridData(show: true, drawHorizontalLine: true, drawVerticalLine: false,
-          getDrawingHorizontalLine: (_) => const FlLine(color: Color(0xFFE5E7EB), strokeWidth: 1)),
+        gridData: const FlGridData(show: false),
         borderData: FlBorderData(show: false),
         barGroups: List.generate(vals.length, (i) => BarChartGroupData(x: i, barRods: [
           BarChartRodData(toY: vals[i].toDouble(), color: colors[i], width: 32, borderRadius: BorderRadius.circular(6),
@@ -811,11 +898,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
                           fontSize: 12)))
                   .toList(),
             )),
-        gridData: FlGridData(
-            show: true,
-            drawVerticalLine: false,
-            getDrawingHorizontalLine: (_) =>
-                const FlLine(color: Color(0xFFE5E7EB), strokeWidth: 1)),
+        gridData: const FlGridData(show: false),
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
           bottomTitles: AxisTitles(
