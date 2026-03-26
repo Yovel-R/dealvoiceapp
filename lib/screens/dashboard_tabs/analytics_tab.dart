@@ -118,9 +118,17 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     for (final e in _filteredLogs) {
       total++;
       final d = e.duration ?? 0;
-      totalDur += d;
+      
+      final type = _effectiveType(e);
+      // For statistics, only count duration for incoming and outgoing (talk time)
+      // Ignore ring time for missed/rejected as per user request
+      if (type == CallType.incoming || type == CallType.outgoing) {
+        totalDur += d;
+      }
+      
       if (d > 0) connected++;
-      switch (_effectiveType(e)) {
+      
+      switch (type) {
         case CallType.incoming:  incoming++;  inDur  += d; break;
         case CallType.outgoing:  outgoing++;  outDur += d; break;
         case CallType.missed:    missed++;    break;
@@ -454,6 +462,21 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
               value: '${s['rejected']}',
               unit: 'Calls',
             ),
+            _buildMetricCard(
+              icon: Icons.check_circle_rounded,
+              iconColor: const Color(0xFF10B981), // Green
+              label: 'Connected',
+              value: '${s['connected']}',
+              unit: 'Calls',
+            ),
+            _buildMetricCard(
+              icon: Icons.speed_rounded,
+              iconColor: const Color(0xFF6366F1), // Indigo
+              label: 'Avg. Duration',
+              value: _fmtDur(s['connected']! > 0 ? s['totalDur']! ~/ s['connected']! : 0),
+              unit: 'Avg',
+            ),
+            
           ],
         );
       },
@@ -695,7 +718,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
                   fontFamily: 'Inter',
                 ),
               ),
-              if ((e.duration ?? 0) > 0)
+              if ((e.duration ?? 0) > 0 && t != CallType.missed && t != CallType.rejected)
                 Text(
                   _fmtDur(e.duration),
                   style: TextStyle(

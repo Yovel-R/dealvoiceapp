@@ -72,13 +72,14 @@ class CallLogService {
 
       for (final e in entriesForDate) {
         final dur = e.duration ?? 0;
-        totalDur += dur;
         String typeStr = 'unknown';
 
         final effective = (e.callType == CallType.incoming && dur == 0) ? CallType.rejected : e.callType;
         switch (effective) {
-          case CallType.incoming: incoming++; incomingDur += dur; typeStr = 'incoming'; break;
-          case CallType.outgoing: outgoing++; outgoingDur += dur; typeStr = 'outgoing'; break;
+          case CallType.incoming: 
+            incoming++; incomingDur += dur; totalDur += dur; typeStr = 'incoming'; break;
+          case CallType.outgoing: 
+            outgoing++; outgoingDur += dur; totalDur += dur; typeStr = 'outgoing'; break;
           case CallType.missed: missed++; typeStr = 'missed'; break;
           case CallType.rejected: rejected++; typeStr = 'rejected'; break;
           default: break;

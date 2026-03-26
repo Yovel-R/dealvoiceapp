@@ -175,7 +175,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
 
     for (final e in list) {
       final dur = e.duration ?? 0;
-      totalDur += dur;
+      // totalDur calculation moved inside switch to only include answered calls
       String typeStr;
       final effective = (e.callType == CallType.incoming && dur == 0)
           ? CallType.rejected
@@ -183,9 +183,9 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
 
       switch (effective) {
         case CallType.incoming:
-          incoming++; incomingDur += dur; typeStr = 'incoming'; break;
+          incoming++; incomingDur += dur; totalDur += dur; typeStr = 'incoming'; break;
         case CallType.outgoing:
-          outgoing++; outgoingDur += dur; typeStr = 'outgoing'; break;
+          outgoing++; outgoingDur += dur; totalDur += dur; typeStr = 'outgoing'; break;
         case CallType.missed:
           missed++; typeStr = 'missed'; break;
         case CallType.rejected:
