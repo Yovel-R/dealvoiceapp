@@ -269,10 +269,13 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
 
   String _formatDuration(int? seconds) {
     final s = seconds ?? 0;
+    if (s == 0) return '0s';
     final h = s ~/ 3600;
     final m = (s % 3600) ~/ 60;
     final sec = s % 60;
-    return '${h}h ${m}m ${sec}s';
+    if (h > 0) return '${h}h ${m}m ${sec}s';
+    if (m > 0) return '${m}m ${sec}s';
+    return '${sec}s';
   }
 
   String _formatTime(int? timestamp) {
@@ -342,7 +345,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                     }
 
                     return _buildCallCard(logs[index - 1]);
-                  },
+                  },  
                 ),
         ),
       ],
@@ -480,7 +483,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _isServiceRunning 
-              ? Icon(Icons.bolt_rounded, size: 20, color: successGreen)
+              ? Icon(Icons.sync, size: 20, color: successGreen)
               : RotationTransition(
                   turns: _syncRotateController,
                   child: Icon(Icons.sync, size: 20, color: primaryBlue),
@@ -513,12 +516,20 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     final effectiveType = _getEffectiveCallType(entry);
     final typeIcon = _callTypeIcon(effectiveType);
     final time = _formatTime(entry.timestamp);
-    final duration = _formatDuration(entry.duration);
+    
+    final String duration;
+    if (effectiveType == CallType.missed) {
+      duration = 'Missed';
+    } else if (effectiveType == CallType.rejected) {
+      duration = 'Rejected';
+    } else {
+      duration = _formatDuration(entry.duration);
+    }
 
     final cardKey = '${entry.number}_${entry.timestamp}';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: const Color(0xFF3D7DFE),
         borderRadius: BorderRadius.circular(24),
